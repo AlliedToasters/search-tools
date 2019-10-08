@@ -71,10 +71,15 @@ class BM25Model(object):
         self.idf = IDF(inputCol='__counts', outputCol='__idf')
         self.train_col = None
         self.udf = None
+        self.is_fit = False
         
     def fit(self, df, train_col):
         """
         Does fitting on input df.
+            df: a pyspark dataframe.
+            train_col (string): The name of the column containing training documents.
+            
+        Returns: self, a 
         """
         self.train_col = train_col
         df_ = self.tok.transform(df.withColumnRenamed(train_col, '__input'))
@@ -84,6 +89,7 @@ class BM25Model(object):
         self.idf = self.idf.fit(df_)
         #this will reset value of self.udf to be a working udf function.
         exec(udf_template.format(mean_dl, self.k, self.b))
+        self.is_fit = True
         return self
         
     def transform(self, df, score_col, bm25_output_name='bm25', tf_output_name=None, ntf_output_name=None, tfidf_output_name=None):
@@ -93,6 +99,8 @@ class BM25Model(object):
             These three additional scores come "for free" with bm25
             but are only returned optionally.
         """
+        if not self.is_fit:
+            raise Exception("You must fit the BM25 model with a call to .fit() first.")
         columns = df.columns
         df_ = self.tok.transform(df.withColumnRenamed(score_col, '__input'))
         df_ = self.vec.transform(df_)
