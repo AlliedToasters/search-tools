@@ -6,3 +6,6 @@ Text matching featurizers, (BM25, tfidf similarity, etc.) can be found in `searc
 
 ## Metrics
 Ranking metrics functions can be found in `search_tools.metrics`. A NDCG demo in pyspark is available in [this notebook](ndcg_demo.ipynb).
+
+## Installation
+This library does not yet have a release (coming soon). In the meantime, clone this repository and install with `pip install .` .
