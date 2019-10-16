@@ -74,3 +74,46 @@ def get_rankings(df, gt_col, est_col, query_col='query', id_col='pid'):
     return sorted_sdf.select(query_col, 'best.{}'.format(id_col), 'estimated').withColumnRenamed(id_col, 'best_order').select(query_col, 'best_order', 'estimated.{}'.format(id_col)).withColumnRenamed(id_col, 'estimated_order')
 
 ndcg_udf = F.udf(ndcg, T.FloatType())
+
+
+def dcg_with_rel(relevances, k=None):
+    """
+    Computes discounted cumulative gain
+    given ground-truth relevance values.
+    if k is None, computes for all relevances.
+    """
+    relevances = np.array(relevances)
+    if k is None:
+        k = len(relevances)
+    
+    relevances = relevances[:k]
+    
+    i = np.arange(1, len(relevances)+1)
+    
+    brp = (2.0 ** relevances)
+    
+    score = ((brp - 1)/np.log2(i + 1)).sum()
+    
+    return score
+
+def ndcg_at_k(relevances, k=None):
+    """
+    Pass in an ordered list of relevances
+    and k; returns normalized ndcg score.
+    """
+    relevances = np.array(relevances)
+    best = relevances.copy()
+    best[::-1].sort()
+    best_dcg = dcg_with_rel(best, k=k)
+    dcg = dcg_with_rel(relevances, k=k)
+    ndcg = dcg/best_dcg
+    return float(ndcg)
+
+def ndcg_at_k_constructor(k):
+    """
+    Creates and returns a pyspark udf
+    that computes ndcg@k for the k passed as argument.
+    """
+
+    ndcg_udf = F.udf(lambda x: ndcg_at_k(x, k=k), T.FloatType())
+    return ndcg_udf
