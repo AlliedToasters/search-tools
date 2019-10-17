@@ -49,6 +49,27 @@ def ndcg(best, output):
     
     return float(dcg_/top_score)
 
+def ranking_ndcg_at_k(best, other, k=None):
+    """
+    Computes ndcg at k using raw position
+    as relevance score.
+    """
+    if k is None:
+        k = len(other)
+    other = other[:k]
+    diff = len(other) - len(best)
+    if diff == 0:
+        pass
+    elif diff < 0:
+        other += ['_ ' for x in range(np.abs(diff))]
+    elif diff > 0:
+        best += [' _' for x in range(diff)]
+    other = [hash(x) for x in other]
+    best = [hash(x) for x in best]
+    return ndcg(best, other)
+        
+    
+
 def get_rankings(df, gt_col, est_col, query_col='query', id_col='pid'):
     """
     Does grouping, aggregation, and sorting of df to get rankings.
@@ -92,7 +113,8 @@ def dcg_with_rel(relevances, k=None):
     
     brp = (2.0 ** relevances)
     
-    score = ((brp - 1)/np.log2(i + 1)).sum()
+    terms = (brp - 1)/np.log2(i + 1)
+    score = terms.sum()
     
     return score
 
@@ -105,6 +127,8 @@ def ndcg_at_k(relevances, k=None):
     best = relevances.copy()
     best[::-1].sort()
     best_dcg = dcg_with_rel(best, k=k)
+    if best_dcg == 0.0:
+        return 0.0
     dcg = dcg_with_rel(relevances, k=k)
     ndcg = dcg/best_dcg
     return float(ndcg)
@@ -116,4 +140,13 @@ def ndcg_at_k_constructor(k):
     """
 
     ndcg_udf = F.udf(lambda x: ndcg_at_k(x, k=k), T.FloatType())
+    return ndcg_udf
+
+def ranking_ndcg_at_k_constructor(k):
+    """
+    Creates and returns a pyspark udf
+    that computes ranking ndcg@k for the k passed as argument.
+    """
+
+    ndcg_udf = F.udf(lambda x, y: ranking_ndcg_at_k(x, y, k=k), T.FloatType())
     return ndcg_udf
