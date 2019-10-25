@@ -6,11 +6,13 @@ from search_tools.metrics import ndcg_at_k, dcg_with_rel, ranking_ndcg_at_k
 from search_tools.metrics import ndcg_at_k_constructor, ranking_ndcg_at_k_constructor
 from search_tools.models import ClickModel
 
-def generate_data():
-    pos_distr = np.random.random(size=(4,))
+np.random.seed(42)
+
+def generate_data(n_events=100):
+    pos_distr = np.random.uniform(low=0.1, high=0.99, size=(4,))
     queries = np.array(['do a search', 'i like to search', 'things for me', 'shopping item'])
     results = np.array(['doc0', 'doc1', 'doc2', 'doc3', 'doc4', 'doc5', 'doc6', 'doc7'])
-    affinities = pd.DataFrame(columns=queries, index=results, data=np.random.random(size=(len(results), len(queries))))
+    affinities = pd.DataFrame(columns=queries, index=results, data=np.random.uniform(low=0.1, high=0.99, size=(len(results), len(queries))))
     cols = ['_query', '_result', '_position', '_click']
     outcomes = {
         'do a search':[
@@ -37,7 +39,7 @@ def generate_data():
 
     dataset = pd.DataFrame(columns=cols)
 
-    for i in range(100):
+    for i in range(n_events):
         search_term = np.random.choice(queries)
         returned_results = np.random.randint(0, 3)
         results = outcomes[search_term][returned_results]

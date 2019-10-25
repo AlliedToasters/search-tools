@@ -14,8 +14,14 @@ class ClickModel(object):
             sessions_count='n_sessions',
             events_count='n_clicks',
             history=True,
-            strategy='prior'
+            strategy='prior',
+            val_frac=None
         ):
+        if val_frac is not None:
+            self.val_frac = val_frac
+            self.val = True
+        else:
+            self.val = False
         self._init_graph(data, query_col, result_col, position_col, sessions_count, events_count)
         pos_size = len(self.pos_dict)
         qr_size = len(self.qr_dict)
@@ -33,6 +39,16 @@ class ClickModel(object):
 
 
     def _init_graph(self, data, query_col, result_col, position_col, sessions_count, events_count):
+        """
+        Initialize the sparse graph for more efficient computation.
+        The resulting graph is written to self.graph and is an array like:
+        [
+            [position index, query-result index, number of positive events, number of negative events],
+            [...],
+            ...
+        ]
+
+        """
         df = data.copy()
         if 'float' in str(df[result_col].dtype):
             df[result_col] = df[result_col].astype(int)
@@ -46,8 +62,28 @@ class ClickModel(object):
         df['__pos_idx'] = df[position_col].apply(lambda x: self.pos_dict[x])
         df['__qr_idx'] = df['__qr_pair'].apply(lambda x: self.qr_dict[x])
         df['__n_no_clicks'] = df[sessions_count] - df[events_count]
-        self.graph = df[['__pos_idx', '__qr_idx', events_count, '__n_no_clicks']].values
+        graph = df[['__pos_idx', '__qr_idx', events_count, '__n_no_clicks']].values
 
+        if self.val:
+            #get validation set
+            n_val_nodes = round(self.val_frac * len(graph))
+            qrs, counts = np.unique(graph[:, 1], return_counts=True)
+            to_take = qrs[np.where(counts>1, True, False)]
+            try:
+                to_take = np.random.choice(to_take, size=(n_val_nodes,), replace=False)
+            except ValueError:
+                msg = 'Cannot hold out this many nodes. Please'
+            val_idx = []
+            for qr_idx in to_take:
+                candidates = np.argwhere(graph[:,1]==qr_idx).flatten()
+                idx = np.random.choice(candidates)
+                val_idx.append(idx)
+            val_idx = np.array(val_idx)
+
+            self.val_graph = graph[val_idx]
+            self.graph = graph[~np.isin(np.arange(0, len(graph)), val_idx)]
+        else:
+            self.graph=graph
 
 
     def _init_parameters(self, pos_size, qr_size, strategy):
@@ -165,6 +201,16 @@ class ClickModel(object):
         self.pos = new_pos
         self.qr = new_qr
 
+    def validate(self, val_set=False):
+        if val_set:
+            graph = self.val_graph
+        else:
+            graph = self.graph
+        total = graph[:, 2] + graph[:, 3]
+        positive_outcomes = graph[:, 2]
+        predicted_outcomes = (self.pos[graph[:, 0]] * self.qr[graph[:, 1]]) * total
+        return mean_absolute_error(positive_outcomes, predicted_outcomes)
+
 
     def do_update(self, alternate=True):
         if alternate:
@@ -179,9 +225,11 @@ class ClickModel(object):
         results = [x[-1] for x in split]
         return results, terms
 
-    def fit(self, n_iterations=10000, alternate=True):
+    def fit(self, n_iterations=1000, alternate=True):
         for i in range(n_iterations):
             self.do_update(alternate)
+            if i%10 == 0:
+                print(self.validate(val_set=self.val))
 
         qr_map = {self.qr_dict[key]:key for key in self.qr_dict}
         qr_keys = [qr_map[i] for i in range(len(self.qr))]
