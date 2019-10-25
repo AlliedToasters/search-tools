@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+from sklearn.metrics import mean_absolute_error
 from scipy.sparse import coo_matrix
 
 class ClickModel(object):
@@ -229,7 +229,7 @@ class ClickModel(object):
         for i in range(n_iterations):
             self.do_update(alternate)
             if i%10 == 0:
-                print(self.validate(val_set=self.val))
+                self.validate(val_set=self.val)
 
         qr_map = {self.qr_dict[key]:key for key in self.qr_dict}
         qr_keys = [qr_map[i] for i in range(len(self.qr))]
