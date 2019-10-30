@@ -84,6 +84,25 @@ class ModelsTest(unittest.TestCase):
         assert isinstance(qr, pd.DataFrame)
         assert isinstance(pos, pd.DataFrame)
 
+    def test_val_click_model(self):
+        data = self.df
+        model = ClickModel(
+            data,
+            query_col='_query',
+            result_col='_result',
+            position_col='_position',
+            sessions_count='total_sessions',
+            events_count='total_clicks',
+            history=True,
+            strategy='prior',
+            val_frac=.1
+        )
+        qr, pos = model.fit(n_iterations=200000, alternate=True, stopping=1e-5)
+        assert isinstance(qr, pd.DataFrame)
+        assert isinstance(pos, pd.DataFrame)
+
+
+
 
 class MetricsTest(unittest.TestCase):
 

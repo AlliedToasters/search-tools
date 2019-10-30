@@ -15,7 +15,8 @@ class ClickModel(object):
             events_count='n_clicks',
             history=True,
             strategy='prior',
-            val_frac=None
+            val_frac=None,
+            verbose=True
         ):
         if val_frac is not None:
             self.val_frac = val_frac
@@ -36,6 +37,7 @@ class ClickModel(object):
         self.result_col = result_col
         self.query_col = query_col
         self.position_col = position_col
+        self.verbose = verbose
 
 
     def _init_graph(self, data, query_col, result_col, position_col, sessions_count, events_count):
@@ -225,11 +227,20 @@ class ClickModel(object):
         results = [x[-1] for x in split]
         return results, terms
 
-    def fit(self, n_iterations=1000, alternate=True):
+    def fit(self, n_iterations=1000, alternate=True, stopping=None):
+        if stopping is not None:
+            prev = 1e99
         for i in range(n_iterations):
             self.do_update(alternate)
             if i%10 == 0:
-                self.validate(val_set=self.val)
+                val_score = self.validate(val_set=self.val)
+                if stopping is not None:
+                    diff = prev - val_score
+                    if i > 100 and diff < (stopping * 10):
+                        if self.verbose:
+                            print('stopping early with ', str(i), ' iterations  and a val score of ', val_score)
+                        break
+                    prev = val_score
 
         qr_map = {self.qr_dict[key]:key for key in self.qr_dict}
         qr_keys = [qr_map[i] for i in range(len(self.qr))]
