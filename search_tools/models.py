@@ -29,10 +29,10 @@ class ClickModel(object):
         self._init_parameters(pos_size, qr_size, strategy=strategy)
         self.history = history
         if self.history:
-            self.pos_history = []
             self.pos_diff_history = []
-            self.qr_history = []
             self.qr_diff_history = []
+            self.train_loss = []
+            self.val_loss = []
 
         self.result_col = result_col
         self.query_col = query_col
@@ -68,13 +68,14 @@ class ClickModel(object):
 
         if self.val:
             #get validation set
-            n_val_nodes = round(self.val_frac * len(graph))
+            n_val_nodes = max(round(self.val_frac * len(graph)), 1)
             qrs, counts = np.unique(graph[:, 1], return_counts=True)
             to_take = qrs[np.where(counts>1, True, False)]
             try:
                 to_take = np.random.choice(to_take, size=(n_val_nodes,), replace=False)
             except ValueError:
-                msg = 'Cannot hold out this many nodes. Please'
+                msg = 'Cannot hold out this many nodes. Please reduce val_frac.'
+                raise Exception(msg)
             val_idx = []
             for qr_idx in to_take:
                 candidates = np.argwhere(graph[:,1]==qr_idx).flatten()
@@ -86,7 +87,6 @@ class ClickModel(object):
             self.graph = graph[~np.isin(np.arange(0, len(graph)), val_idx)]
         else:
             self.graph=graph
-
 
     def _init_parameters(self, pos_size, qr_size, strategy):
         if strategy == 'random':
@@ -120,8 +120,6 @@ class ClickModel(object):
         else:
             self.pos = np.random.random(size=(pos_size,))
             self.qr = np.random.random(size=(qr_size,))
-
-
 
     def _compute_update(self, kind=None):
         #these values are shared in both updates
@@ -173,8 +171,6 @@ class ClickModel(object):
         return np.linalg.norm(v0 - v1)
 
     def update_pos(self):
-        if self.history:
-            self.pos_history.append(self.pos.copy())
         new_pos = self._compute_update(kind='pos')
         self.pos = new_pos
         diff_pos = self.compute_diff(self.pos, new_pos)
@@ -182,8 +178,6 @@ class ClickModel(object):
             self.pos_diff_history.append(diff_pos)
 
     def update_qr(self):
-        if self.history:
-            self.qr_history.append(self.qr.copy())
         new_qr = self._compute_update(kind='qr')
         self.qr = new_qr
         diff_qr = self.compute_diff(self.qr, new_qr)
@@ -191,9 +185,6 @@ class ClickModel(object):
             self.qr_diff_history.append(diff_qr)
 
     def update_both(self):
-        if self.history:
-            self.pos_history.append(self.pos.copy())
-            self.qr_history.append(self.qr.copy())
         new_pos, new_qr = self._compute_update()
         diff_pos = self.compute_diff(self.pos, new_pos)
         diff_qr = self.compute_diff(self.qr, new_qr)
@@ -213,7 +204,6 @@ class ClickModel(object):
         predicted_outcomes = (self.pos[graph[:, 0]] * self.qr[graph[:, 1]]) * total
         return mean_absolute_error(positive_outcomes, predicted_outcomes)
 
-
     def do_update(self, alternate=True):
         if alternate:
             self.update_pos()
@@ -227,20 +217,28 @@ class ClickModel(object):
         results = [x[-1] for x in split]
         return results, terms
 
-    def fit(self, n_iterations=1000, alternate=True, stopping=None):
+    def fit(self, n_iterations=1000, alternate=True, stopping=None, min_iterations=20):
         if stopping is not None:
             prev = 1e99
         for i in range(n_iterations):
             self.do_update(alternate)
-            if i%10 == 0:
-                val_score = self.validate(val_set=self.val)
-                if stopping is not None:
-                    diff = prev - val_score
-                    if i > 100 and diff < (stopping * 10):
-                        if self.verbose:
-                            print('stopping early with ', str(i), ' iterations  and a val score of ', val_score)
-                        break
-                    prev = val_score
+            val_loss = self.validate(val_set=self.val)
+            if self.val:
+                train_loss = self.validate(val_set=False)
+            else:
+                train_loss = val_loss
+            if i%10 == 0 and self.verbose:
+                print('validation loss at iteration {}: '.format(i), round(val_loss, 4))
+            if self.history:
+                self.train_loss.append(train_loss)
+                self.val_loss.append(val_loss)
+            if stopping is not None:
+                diff = prev - val_loss
+                if i > min_iterations and diff < stopping:
+                    if self.verbose:
+                        print('stopping early with ', str(i), ' iterations  and a val loss of ', val_loss)
+                    break
+                prev = val_loss
 
         qr_map = {self.qr_dict[key]:key for key in self.qr_dict}
         qr_keys = [qr_map[i] for i in range(len(self.qr))]
@@ -255,4 +253,15 @@ class ClickModel(object):
         pos_results[self.position_col] = list(range(len(self.pos)))
         pos_results['p_examine'] = self.pos
 
-        return qr_results, pos_results
+        if self.history:
+            history = {
+                'val_loss':self.val_loss,
+                'train_loss':self.train_loss,
+                'delta_pos':self.pos_diff_history,
+                'delta_qr':self.qr_diff_history
+            }
+
+        else:
+            history = {}
+
+        return qr_results, pos_results, history

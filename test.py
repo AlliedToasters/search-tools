@@ -78,13 +78,14 @@ class ModelsTest(unittest.TestCase):
             sessions_count='total_sessions',
             events_count='total_clicks',
             history=True,
-            strategy='prior'
+            strategy='prior',
+            verbose=False
         )
-        qr, pos = model.fit(n_iterations=4, alternate=True)
+        qr, pos, history = model.fit(n_iterations=4, alternate=True)
         assert isinstance(qr, pd.DataFrame)
         assert isinstance(pos, pd.DataFrame)
 
-    def test_val_click_model(self):
+    def test_stopping_click_model(self):
         data = self.df
         model = ClickModel(
             data,
@@ -95,11 +96,46 @@ class ModelsTest(unittest.TestCase):
             events_count='total_clicks',
             history=True,
             strategy='prior',
-            val_frac=.1
+            val_frac=.1,
+            verbose=False
         )
-        qr, pos = model.fit(n_iterations=200000, alternate=True, stopping=1e-5)
+        qr, pos, history = model.fit(n_iterations=200000, alternate=True, stopping=1e-5)
         assert isinstance(qr, pd.DataFrame)
         assert isinstance(pos, pd.DataFrame)
+
+    def test_val_exception(self):
+        data = self.df
+        try:
+            model = ClickModel(
+                data,
+                query_col='_query',
+                result_col='_result',
+                position_col='_position',
+                sessions_count='total_sessions',
+                events_count='total_clicks',
+                history=True,
+                strategy='prior',
+                val_frac=.1,
+                verbose=False
+            )
+            raise AssertionError('Expected failure due to large frac setting.')
+        except AssertionError:
+            pass
+
+    def test_no_val(self):
+        data = self.df
+        model = ClickModel(
+            data,
+            query_col='_query',
+            result_col='_result',
+            position_col='_position',
+            sessions_count='total_sessions',
+            events_count='total_clicks',
+            history=True,
+            strategy='prior',
+            verbose=False
+        )
+        model.fit(3)
 
 
 
