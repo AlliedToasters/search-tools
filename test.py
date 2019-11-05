@@ -5,6 +5,7 @@ import pandas as pd
 from search_tools.metrics import ndcg_at_k, dcg_with_rel, ranking_ndcg_at_k
 from search_tools.metrics import ndcg_at_k_constructor, ranking_ndcg_at_k_constructor
 from search_tools.models import ClickModel
+from search_tools.processing import alphabetize_concat
 
 np.random.seed(42)
 
@@ -137,9 +138,6 @@ class ModelsTest(unittest.TestCase):
         )
         model.fit(3)
 
-
-
-
 class MetricsTest(unittest.TestCase):
 
     def test_dcg_with_rel(self):
@@ -192,6 +190,23 @@ class MetricsTest(unittest.TestCase):
     def test_constructors(self):
         func = ndcg_at_k_constructor(k=5)
         func = ranking_ndcg_at_k_constructor(k=5)
+
+class FeaturizerTest(unittest.TestCase):
+
+    def test_alpha_stringlist(self):
+        concepts = ["men","running","black","footwear","blue"]
+        result = alphabetize_concat(concepts)
+        assert result == 'black_blue_footwear_men_running'
+
+    def test_alpha_numlist(self):
+        concepts = [2, 1, 0.1, 2.2]
+        result = alphabetize_concat(concepts)
+        assert result == '0.1_1_2_2.2'
+
+    def test_alpha_mixedlist(self):
+        concepts = [2, 1, 'moose', None, 0.1, 2.2]
+        result = alphabetize_concat(concepts)
+        assert result == '0.1_1_2_2.2_None_moose'
 
 if __name__ in "__main__":
     unittest.main()
