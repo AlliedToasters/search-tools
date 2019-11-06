@@ -16,8 +16,10 @@ class ClickModel(object):
             history=True,
             strategy='prior',
             val_frac=None,
-            verbose=True
+            verbose=True,
+            random_seed=42
         ):
+        self.random_seed=random_seed
         if val_frac is not None:
             self.val_frac = val_frac
             self.val = True
@@ -72,6 +74,7 @@ class ClickModel(object):
             qrs, counts = np.unique(graph[:, 1], return_counts=True)
             to_take = qrs[np.where(counts>1, True, False)]
             try:
+                np.random.seed(self.random_seed)
                 to_take = np.random.choice(to_take, size=(n_val_nodes,), replace=False)
             except ValueError:
                 msg = 'Cannot hold out this many nodes. Please reduce val_frac.'
@@ -89,10 +92,7 @@ class ClickModel(object):
             self.graph=graph
 
     def _init_parameters(self, pos_size, qr_size, strategy):
-        if strategy == 'random':
-            self.pos = np.random.random(size=(pos_size,))
-            self.qr = np.random.random(size=(qr_size,))
-        elif isinstance(strategy, float):
+        if isinstance(strategy, float):
             self.pos = np.array([strategy for _ in range(pos_size)])
             self.qr = np.array([.1 for _ in range(qr_size)])
         elif strategy == 'prior':
@@ -118,6 +118,7 @@ class ClickModel(object):
 
             self.qr = nums/denoms
         else:
+            np.random.seed(self.random_seed)
             self.pos = np.random.random(size=(pos_size,))
             self.qr = np.random.random(size=(qr_size,))
 
